@@ -15,6 +15,16 @@
 #define RANGE_MIN 0.005+ROBOT_RADIUS // 0.5 cm + ROBOT_RADIUS.
 #define RANGE_MAX 0.05+ROBOT_RADIUS // 5 cm + ROBOT_RADIUS. 
 
+typedef struct {
+
+WbDeviceTag left_motor;
+WbDeviceTag right_motor;  
+WbFieldRef position;
+WbFieldRef rotation;
+WbDeviceTag ps[8];
+
+}rb_speed;  
+
 bool detect_obstacle_ahead(float d[8]) {
   return ( (d[0] < RANGE_MAX/2.0) || 
            (d[1] < RANGE_MAX/2.0) || 
@@ -48,50 +58,58 @@ int main(int argc, char **argv) {
   if (!log)
     exit(1);
     
-  ////// EXERCICIO: CRIAR FUNÇÃO PARA SUBSTITUIR ESSE CODIGO USANDO STRUCT /////
+  rb_speed robot_speed () {
+    
+    rb_speed sp;
+    
+    
   wb_robot_init();
-  WbDeviceTag left_motor = wb_robot_get_device("left wheel motor");
-  WbDeviceTag right_motor = wb_robot_get_device("right wheel motor");
-  wb_motor_set_position(left_motor, INFINITY);
-  wb_motor_set_position(right_motor, INFINITY);
-  wb_motor_set_velocity(left_motor, 0.1 * MAX_SPEED);
-  wb_motor_set_velocity(right_motor, 0.1 * MAX_SPEED);
-  WbDeviceTag ps[8];
+  sp.left_motor = wb_robot_get_device("left wheel motor");
+  sp.right_motor = wb_robot_get_device("right wheel motor");
+  wb_motor_set_position(sp.left_motor, INFINITY);
+  wb_motor_set_position(sp.right_motor, INFINITY);
+  wb_motor_set_velocity(sp.left_motor, 0.1 * MAX_SPEED);
+  wb_motor_set_velocity(sp.right_motor, 0.1 * MAX_SPEED);
+  
   char ps_id[4];
   for(int i = 0; i < 8; i++){
     sprintf(ps_id, "ps%d", i);
-    ps[i] = wb_robot_get_device(ps_id);
-    wb_distance_sensor_enable(ps[i], TIME_STEP);
+    sp.ps[i] = wb_robot_get_device(ps_id);
+    wb_distance_sensor_enable(sp.ps[i], TIME_STEP);
   }
   WbNodeRef robot_node = wb_supervisor_node_get_from_def("EPUCK");
   if (robot_node == NULL) {
     fprintf(stderr, "No DEF EPUCK node found in the current world file\n");
     exit(1);
   }
-  WbFieldRef robot_position = wb_supervisor_node_get_field(robot_node, "translation");
-  WbFieldRef robot_rotation = wb_supervisor_node_get_field(robot_node, "rotation");
-  ////// EXERCICIO: CRIAR FUNÇÃO PARA SUBSTITUIR ESSE CODIGO USANDO STRUCT /////
-
+  sp.position = wb_supervisor_node_get_field(robot_node, "translation");
+  sp.rotation = wb_supervisor_node_get_field(robot_node, "rotation");
+ 
+    return sp;
+  }
+  
+  rb_speed inter = robot_speed ();
+  
   while (wb_robot_step(TIME_STEP) != -1) {
-    const double *position = wb_supervisor_field_get_sf_vec3f(robot_position);
-    const double *rotation = wb_supervisor_field_get_sf_rotation(robot_rotation);
+    const double *position = wb_supervisor_field_get_sf_vec3f(inter.position);
+    const double *rotation = wb_supervisor_field_get_sf_rotation(inter.rotation);
        
     float dist[8];
     for(int i = 0; i < 8; i++) {
-      dist[i] = convert_intensity_to_meters(wb_distance_sensor_get_value(ps[i]));
+      dist[i] = convert_intensity_to_meters(wb_distance_sensor_get_value(inter.ps[i]));
     }
 
     salvar_posicao_distancias(log, position, rotation, dist);
 
     if ( detect_obstacle_ahead(dist) )
     {
-      wb_motor_set_velocity(left_motor, 0.2 * MAX_SPEED);
-      wb_motor_set_velocity(right_motor, -0.2 * MAX_SPEED);
+      wb_motor_set_velocity(inter.left_motor, 0.2 * MAX_SPEED);
+      wb_motor_set_velocity(inter.right_motor, -0.2 * MAX_SPEED);
     }
     if ( !detect_obstacle_ahead(dist) )
     {
-      wb_motor_set_velocity(left_motor, 0.5 * MAX_SPEED);
-      wb_motor_set_velocity(right_motor, 0.5 * MAX_SPEED);
+      wb_motor_set_velocity(inter.left_motor, 0.5 * MAX_SPEED);
+      wb_motor_set_velocity(inter.right_motor, 0.5 * MAX_SPEED);
     }
   }
    
